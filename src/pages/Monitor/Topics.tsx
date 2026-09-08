@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Empty, Spin, Tabs, Tag } from 'antd'
+import { Button, Empty, Tabs, Tag } from 'antd'
 import { BulbOutlined, EditOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { useApp } from '../../context/AppContext'
-import { getTopicCirclePostLeaderboard } from '../../api/topicCircle'
 import type { TopicCircleMonitorTopic, TopicCirclePostLeaderboardItem, TopicCircleTopicPost } from '../../api/topicCircle'
-import { useTopicCircleMonitorTopics } from '../../hooks/useTopicCircleMonitorTopics'
 import {
   CustomGroupAccountsDrawer,
   CustomGroupDetail,
@@ -28,9 +26,217 @@ const BOARD_MODES: { key: BoardMode; label: string; desc: string }[] = [
   { key: 'rising', label: '热度飙升榜', desc: '按本轮新增浏览排序' },
 ]
 
+const MOCK_CALCULATED_AT = '2026-09-04T14:54:00+08:00'
+
+const MOCK_TOPICS: TopicCircleMonitorTopic[] = [
+  {
+    id: 'mock-ai-startup',
+    name: 'AI创业',
+    enabled: true,
+    accountCount: 11,
+    recentPostCount3h: 10,
+    candidateCount24h: 11,
+    triggeredEventCount24h: 4,
+    latestCandidates: [],
+  },
+  {
+    id: 'mock-ai-product',
+    name: 'AI 产品机会追踪',
+    enabled: true,
+    accountCount: 9,
+    recentPostCount3h: 8,
+    candidateCount24h: 10,
+    triggeredEventCount24h: 3,
+    latestCandidates: [],
+  },
+  {
+    id: 'mock-web3',
+    name: 'Crypto 与 Web3',
+    enabled: true,
+    accountCount: 8,
+    recentPostCount3h: 7,
+    candidateCount24h: 10,
+    triggeredEventCount24h: 2,
+    latestCandidates: [],
+  },
+]
+
+const MOCK_LEADERBOARD_POSTS: TopicCirclePostLeaderboardItem[] = [
+  createMockPost({
+    rank: 1,
+    signalId: 'mock-ai-001',
+    topicWatchId: 'mock-ai-startup',
+    topicWatchName: 'AI创业',
+    authorHandle: '@OpenAI',
+    authorName: 'OpenAI',
+    text: 'OpenAI 发布了一条与 AI 创业相关的新动态：创业热门项目、机会窗口和当前融资环境正在被新一轮模型能力重塑。',
+    views: 4934000,
+    likes: 105000,
+    replies: 1600,
+    reposts: 6800,
+    deltaViews: 543000,
+    previousRank: 5,
+    status: 'hot_event_candidate',
+    publishedAt: '2026-09-04T13:12:00+08:00',
+  }),
+  createMockPost({
+    rank: 2,
+    signalId: 'mock-ai-002',
+    topicWatchId: 'mock-ai-startup',
+    topicWatchName: 'AI创业',
+    authorHandle: '@AnthropicAI',
+    authorName: 'Anthropic',
+    text: 'Anthropic 发布了一条与 AI 创业相关的新动态：企业级 Agent 项目正在从演示走向真实工作流，垂直场景是下一阶段重点。',
+    views: 3173000,
+    likes: 83200,
+    replies: 1220,
+    reposts: 5100,
+    deltaViews: 254000,
+    previousRank: 6,
+    status: 'hot_event_candidate',
+    publishedAt: '2026-09-04T12:55:00+08:00',
+  }),
+  createMockPost({
+    rank: 3,
+    signalId: 'mock-ai-003',
+    topicWatchId: 'mock-ai-startup',
+    topicWatchName: 'AI创业',
+    authorHandle: '@Reuters',
+    authorName: 'Reuters',
+    text: 'Reuters 观察到 AI 创业公司融资节奏回暖，基础设施、应用层和数据服务成为投资人讨论最集中的方向。',
+    views: 2410000,
+    likes: 49800,
+    replies: 820,
+    reposts: 3900,
+    deltaViews: 221000,
+    previousRank: 4,
+    status: 'hot_event_candidate',
+    publishedAt: '2026-09-04T13:46:00+08:00',
+  }),
+  createMockPost({
+    rank: 4,
+    signalId: 'mock-ai-004',
+    topicWatchId: 'mock-ai-product',
+    topicWatchName: 'AI 产品机会追踪',
+    authorHandle: '@levelsio',
+    authorName: 'Pieter Levels',
+    text: '小团队用 AI 工具快速上线产品，关键不再是功能堆叠，而是找到用户每天都会重复打开的高频场景。',
+    views: 1280000,
+    likes: 38500,
+    replies: 540,
+    reposts: 2100,
+    deltaViews: 184000,
+    previousRank: 8,
+    status: 'watching',
+    publishedAt: '2026-09-04T12:18:00+08:00',
+  }),
+  createMockPost({
+    rank: 5,
+    signalId: 'mock-ai-005',
+    topicWatchId: 'mock-ai-product',
+    topicWatchName: 'AI 产品机会追踪',
+    authorHandle: '@ProductHunt',
+    authorName: 'Product Hunt',
+    text: '本周上榜 AI 产品里，知识库问答、销售助手和视频生成工具获得最高讨论量，团队正在寻找更清晰的留存信号。',
+    views: 968000,
+    likes: 22100,
+    replies: 330,
+    reposts: 1400,
+    deltaViews: 99000,
+    previousRank: 7,
+    status: 'watching',
+    publishedAt: '2026-09-04T11:40:00+08:00',
+  }),
+  createMockPost({
+    rank: 6,
+    signalId: 'mock-ai-006',
+    topicWatchId: 'mock-ai-startup',
+    topicWatchName: 'AI创业',
+    authorHandle: '@sama',
+    authorName: 'Sam Altman',
+    text: '创业公司会因为 AI 获得更快的试错速度，但真正的护城河仍然来自分发、数据飞轮和用户信任。',
+    views: 824000,
+    likes: 31200,
+    replies: 470,
+    reposts: 1800,
+    deltaViews: 87500,
+    previousRank: 3,
+    status: 'hot_event_candidate',
+    publishedAt: '2026-09-04T10:35:00+08:00',
+  }),
+  createMockPost({
+    rank: 7,
+    signalId: 'mock-web3-001',
+    topicWatchId: 'mock-web3',
+    topicWatchName: 'Crypto 与 Web3',
+    authorHandle: '@VitalikButerin',
+    authorName: 'Vitalik Buterin',
+    text: 'Web3 应用如果想进入主流市场，需要把复杂链上概念隐藏在更自然的用户体验之后。',
+    views: 711000,
+    likes: 18900,
+    replies: 680,
+    reposts: 1200,
+    deltaViews: 132000,
+    previousRank: 12,
+    status: 'watching',
+    publishedAt: '2026-09-04T13:02:00+08:00',
+  }),
+  createMockPost({
+    rank: 8,
+    signalId: 'mock-ai-007',
+    topicWatchId: 'mock-ai-product',
+    topicWatchName: 'AI 产品机会追踪',
+    authorHandle: '@a16z',
+    authorName: 'a16z',
+    text: 'AI 应用层机会正在从“通用助手”迁移到“嵌入具体岗位的工作台”，产品体验和行业数据成为关键变量。',
+    views: 683000,
+    likes: 16400,
+    replies: 290,
+    reposts: 980,
+    deltaViews: 73000,
+    previousRank: 9,
+    status: 'watching',
+    publishedAt: '2026-09-04T09:56:00+08:00',
+  }),
+  createMockPost({
+    rank: 9,
+    signalId: 'mock-web3-002',
+    topicWatchId: 'mock-web3',
+    topicWatchName: 'Crypto 与 Web3',
+    authorHandle: '@CoinDesk',
+    authorName: 'CoinDesk',
+    text: '稳定币支付和链上结算再次成为创业者讨论焦点，区域支付场景开始出现更具体的落地案例。',
+    views: 522000,
+    likes: 9800,
+    replies: 210,
+    reposts: 760,
+    deltaViews: 61000,
+    previousRank: null,
+    status: 'watching',
+    publishedAt: '2026-09-04T11:08:00+08:00',
+  }),
+  createMockPost({
+    rank: 10,
+    signalId: 'mock-ai-008',
+    topicWatchId: 'mock-ai-startup',
+    topicWatchName: 'AI创业',
+    authorHandle: '@ycombinator',
+    authorName: 'Y Combinator',
+    text: '新一批 AI 创业团队更强调真实收入和分发效率，投资人开始弱化单纯模型包装的故事。',
+    views: 409000,
+    likes: 12100,
+    replies: 180,
+    reposts: 620,
+    deltaViews: 48800,
+    previousRank: 10,
+    status: 'watching',
+    publishedAt: '2026-09-04T08:50:00+08:00',
+  }),
+]
+
 export default function Topics({ timeRangeHours }: { timeRangeHours: number }) {
   const { topicDetail, toast } = useApp()
-  const { topics, loading, error } = useTopicCircleMonitorTopics()
+  const topics = MOCK_TOPICS
   const customGroups = useCustomMonitoringGroups()
   const [activeTopic, setActiveTopic] = useState<string | undefined>()
   const [activeCustomGroup, setActiveCustomGroup] = useState<string | undefined>()
@@ -125,9 +331,6 @@ export default function Topics({ timeRangeHours }: { timeRangeHours: number }) {
     return <TopicDetail name={topicDetail} topics={topics} timeRangeHours={timeRangeHours} />
   }
 
-  if (loading && customGroups.groups.length === 0) return <Spin tip="正在加载主题…" />
-  if (error && customGroups.groups.length === 0) return <Alert type="error" message={`加载失败：${error}`} showIcon />
-
   const activeTabKey = activeCustomGroup
     ? `custom:${activeCustomGroup}`
     : activeTopic
@@ -136,7 +339,6 @@ export default function Topics({ timeRangeHours }: { timeRangeHours: number }) {
 
   return (
     <>
-      {error ? <Alert type="warning" message={`系统主题加载失败：${error}；仍可管理自定义监控群组。`} showIcon /> : null}
       <div className={styles.topicModeBar}>
         <div className={styles.topicModeTabs}>
           {BOARD_MODES.map((mode) => (
@@ -291,8 +493,6 @@ function TopicDetail({
   const { set } = useApp()
   const [posts, setPosts] = useState<TopicCirclePostLeaderboardItem[]>([])
   const [calculatedAt, setCalculatedAt] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null)
   const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType[]>([])
   const activeMode = BOARD_MODES.find((mode) => mode.key === boardMode) ?? BOARD_MODES[0]
@@ -323,38 +523,25 @@ function TopicDetail({
   const hotCandidates = visibleBoardPosts.filter((post) => post.status === 'hot_event_candidate').length
 
   const loadLeaderboard = () => {
-    setLoading(true)
-    setError(null)
     const targetTopics = boardMode === 'circle' && !modeOnly
       ? [name]
       : topics.length
         ? topics.map((topic) => topic.name)
         : [name]
 
-    Promise.all(targetTopics.map((topicName) => getTopicCirclePostLeaderboard(topicName)))
-      .then((results) => {
-        const mergedPosts = dedupeLeaderboardPosts(
-          results.flatMap((result) => result?.items ?? []),
-        )
-        const sortedPosts = mergedPosts.sort((left, right) => {
-          if (boardMode === 'rising') {
-            const delta = (right.deltaViews ?? 0) - (left.deltaViews ?? 0)
-            if (delta !== 0) return delta
-          }
-          return (right.metrics?.views ?? 0) - (left.metrics?.views ?? 0)
-        })
-        setPosts(sortedPosts)
-        const calculatedTimes = results
-          .map((result) => result?.calculatedAt)
-          .filter((value): value is string => Boolean(value))
-          .sort()
-        setCalculatedAt(calculatedTimes[calculatedTimes.length - 1] ?? null)
-        setExpandedPostId(null)
-      })
-      .catch((error: unknown) => {
-        setError(error instanceof Error ? error.message : '帖子榜单加载失败')
-      })
-      .finally(() => setLoading(false))
+    const mergedPosts = dedupeLeaderboardPosts(
+      MOCK_LEADERBOARD_POSTS.filter((post) => targetTopics.includes(post.topicWatchName)),
+    )
+    const sortedPosts = mergedPosts.sort((left, right) => {
+      if (boardMode === 'rising') {
+        const delta = (right.deltaViews ?? 0) - (left.deltaViews ?? 0)
+        if (delta !== 0) return delta
+      }
+      return (right.metrics?.views ?? 0) - (left.metrics?.views ?? 0)
+    })
+    setPosts(sortedPosts)
+    setCalculatedAt(MOCK_CALCULATED_AT)
+    setExpandedPostId(null)
   }
 
   useEffect(() => {
@@ -420,11 +607,7 @@ function TopicDetail({
           <span>榜单变化</span>
           <span>状态</span>
         </div>
-        {loading ? (
-          <Spin tip="正在加载帖子榜单…" />
-        ) : error ? (
-          <Alert type="error" message={`加载失败：${error}`} showIcon />
-        ) : visibleBoardPosts.length === 0 ? (
+        {visibleBoardPosts.length === 0 ? (
           <Empty
             description={boardPosts.length ? '当前账号类型没有匹配帖子' : '暂无帖子榜单，等待采集'}
           >
@@ -474,7 +657,7 @@ function TopicTrendLabel({ post }: { post: TopicCirclePostLeaderboardItem }) {
       </span>
       <span>{formatRankChange(post.previousRank, post.rank)}</span>
       <Tag color={post.status === 'hot_event_candidate' ? 'orange' : 'processing'}>
-        {post.status === 'hot_event_candidate' ? 'Hot Event 候选' : '观察中'}
+        {post.status === 'hot_event_candidate' ? '热点事件候选' : '观察中'}
       </Tag>
     </>
   )
@@ -579,6 +762,66 @@ function summarizePost(post: TopicCirclePostLeaderboardItem) {
 
 function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value
+}
+
+function createMockPost({
+  rank,
+  signalId,
+  topicWatchId,
+  topicWatchName,
+  authorHandle,
+  authorName,
+  text,
+  views,
+  likes,
+  replies,
+  reposts,
+  deltaViews,
+  previousRank,
+  status,
+  publishedAt,
+}: {
+  rank: number
+  signalId: string
+  topicWatchId: string
+  topicWatchName: string
+  authorHandle: string
+  authorName: string
+  text: string
+  views: number
+  likes: number
+  replies: number
+  reposts: number
+  deltaViews: number
+  previousRank: number | null
+  status: TopicCirclePostLeaderboardItem['status']
+  publishedAt: string
+}): TopicCirclePostLeaderboardItem {
+  return {
+    rank,
+    signalId,
+    topicWatchId,
+    topicWatchName,
+    postId: signalId.replace('mock-', 'post-'),
+    authorHandle,
+    authorName,
+    text,
+    url: `https://x.com/${authorHandle.replace(/^@/, '')}/status/${signalId}`,
+    postType: 'post',
+    publishedAt,
+    metrics: {
+      views,
+      likes,
+      replies,
+      reposts,
+      quotes: Math.round(reposts * 0.18),
+    },
+    firstObservedAt: '2026-09-04T09:30:00+08:00',
+    lastObservedAt: MOCK_CALCULATED_AT,
+    deltaViews,
+    previousRank,
+    status,
+  }
 }
 
 function dedupeLeaderboardPosts(posts: TopicCirclePostLeaderboardItem[]) {
