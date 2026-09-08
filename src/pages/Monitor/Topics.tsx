@@ -1,47 +1,73 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Empty, Spin, Tabs, Tag } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { BulbOutlined, EditOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { useApp } from '../../context/AppContext'
-import { getTopicCirclePostLeaderboard, refreshTopicCircleTopics } from '../../api/topicCircle'
+import { getTopicCirclePostLeaderboard } from '../../api/topicCircle'
 import type { TopicCircleMonitorTopic, TopicCirclePostLeaderboardItem, TopicCircleTopicPost } from '../../api/topicCircle'
 import { useTopicCircleMonitorTopics } from '../../hooks/useTopicCircleMonitorTopics'
-import { useTopicCirclePipelineStatus } from '../../hooks/useTopicCirclePipelineStatus'
+import {
+  CustomGroupAccountsDrawer,
+  CustomGroupDetail,
+  CustomGroupEditorDrawer,
+  CustomGroupManagerDrawer,
+  SourceAccountFilter,
+  getMatchedAccounts,
+  inferAccountType,
+  useCustomMonitoringGroups,
+  type AccountType,
+  type CustomMonitoringGroup,
+} from './CustomMonitoringGroups'
 import styles from './Monitor.module.css'
 
-type BoardMode = 'circle' | 'global' | 'rising'
+type BoardMode = 'all' | 'circle' | 'global' | 'rising'
 
 const BOARD_MODES: { key: BoardMode; label: string; desc: string }[] = [
+  { key: 'all', label: '全部', desc: '全部重点主题帖子 Top 10' },
   { key: 'circle', label: '圈内榜', desc: '当前主题圈帖子 Top 10' },
   { key: 'global', label: '全圈总榜', desc: '所有重点主题帖子 Top 10' },
   { key: 'rising', label: '热度飙升榜', desc: '按本轮新增浏览排序' },
 ]
 
-export default function Topics() {
+export default function Topics({ timeRangeHours }: { timeRangeHours: number }) {
   const { topicDetail, toast } = useApp()
-  const { topics, loading, error, reload } = useTopicCircleMonitorTopics()
-  const pipeline = useTopicCirclePipelineStatus()
-  const [refreshing, setRefreshing] = useState(false)
+  const { topics, loading, error } = useTopicCircleMonitorTopics()
+  const customGroups = useCustomMonitoringGroups()
   const [activeTopic, setActiveTopic] = useState<string | undefined>()
+  const [activeCustomGroup, setActiveCustomGroup] = useState<string | undefined>()
   const [boardMode, setBoardMode] = useState<BoardMode>('circle')
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [managerOpen, setManagerOpen] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<CustomMonitoringGroup | null>(null)
+  const [accountsGroup, setAccountsGroup] = useState<CustomMonitoringGroup | null>(null)
 
   useEffect(() => {
     if (boardMode !== 'circle') {
       setActiveTopic(undefined)
+      setActiveCustomGroup(undefined)
       return
     }
 
-    if (!topics.length) {
-      setActiveTopic(undefined)
+    if (activeCustomGroup && customGroups.groups.some((group) => group.id === activeCustomGroup)) {
       return
     }
+
+    setActiveCustomGroup(undefined)
+
+    if (!topics.length) {
+      setActiveTopic(undefined)
+      if (customGroups.groups.length) setActiveCustomGroup(customGroups.groups[0].id)
+      return
+    }
+
     setActiveTopic((current) =>
       current && topics.some((topic) => topic.name === current) ? current : topics[0].name,
     )
-  }, [boardMode, topics])
+  }, [activeCustomGroup, boardMode, customGroups.groups, topics])
 
   const switchBoardMode = (mode: BoardMode) => {
     setBoardMode(mode)
     if (mode === 'circle') {
+      setActiveCustomGroup(undefined)
       setActiveTopic((current) =>
         current && topics.some((topic) => topic.name === current) ? current : topics[0]?.name,
       )
@@ -49,87 +75,183 @@ export default function Topics() {
     }
 
     setActiveTopic(undefined)
+    setActiveCustomGroup(undefined)
   }
 
-  const switchTopic = (topicName: string) => {
+  const switchTopic = (key: string) => {
     setBoardMode('circle')
-    setActiveTopic(topicName)
+    if (key.startsWith('custom:')) {
+      setActiveCustomGroup(key.replace('custom:', ''))
+      setActiveTopic(undefined)
+      return
+    }
+
+    setActiveCustomGroup(undefined)
+    setActiveTopic(key.replace('topic:', ''))
   }
 
-  const refreshTopics = async () => {
-    setRefreshing(true)
-    try {
-      const result = await refreshTopicCircleTopics()
-      reload()
-      pipeline.reload()
-      toast(`主题圈采集完成：${result.collected} 条帖子`)
-    } catch (error) {
-      toast(error instanceof Error ? error.message : '主题圈采集失败')
-    } finally {
-      setRefreshing(false)
+  const openCreateGroup = () => {
+    setEditingGroup(null)
+    setEditorOpen(true)
+  }
+
+  const openEditGroup = (group: CustomMonitoringGroup) => {
+    setManagerOpen(false)
+    setEditingGroup(group)
+    setEditorOpen(true)
+  }
+
+  const saveCustomGroup = (group: CustomMonitoringGroup) => {
+    customGroups.saveGroup(group)
+    setActiveCustomGroup(group.id)
+    setActiveTopic(undefined)
+    setBoardMode('circle')
+    setEditorOpen(false)
+    setEditingGroup(null)
+    toast(group.enabled ? '监控群组已保存并开启' : '监控群组已保存为草稿')
+  }
+
+  const deleteCustomGroup = (id: string) => {
+    customGroups.deleteGroup(id)
+    if (activeCustomGroup === id) {
+      const nextCustomGroup = customGroups.groups.find((group) => group.id !== id)
+      setActiveCustomGroup(topics.length ? undefined : nextCustomGroup?.id)
+      setActiveTopic(topics[0]?.name)
     }
+    toast('监控群组已删除')
   }
 
   if (topicDetail) {
-    return <TopicDetail name={topicDetail} topics={topics} />
+    return <TopicDetail name={topicDetail} topics={topics} timeRangeHours={timeRangeHours} />
   }
 
-  if (loading) return <Spin tip="正在加载主题…" />
-  if (error) return <Alert type="error" message={`加载失败：${error}`} showIcon />
-  if (topics.length === 0) return <Empty description="暂无主题，请在系统设置里配置" />
+  if (loading && customGroups.groups.length === 0) return <Spin tip="正在加载主题…" />
+  if (error && customGroups.groups.length === 0) return <Alert type="error" message={`加载失败：${error}`} showIcon />
+
+  const activeTabKey = activeCustomGroup
+    ? `custom:${activeCustomGroup}`
+    : activeTopic
+      ? `topic:${activeTopic}`
+      : undefined
 
   return (
     <>
-      <div className={styles.topicToolbar}>
-        <span className="small">
-          主题圈每 3 小时自动采集；最近一次：
-          {pipeline.status?.latestFetchRun
-            ? `${pipeline.status.latestFetchRun.status} · ${pipeline.status.latestFetchRun.itemCount} 条 · ${formatTime(pipeline.status.latestFetchRun.startedAt)}`
-            : pipeline.loading
-              ? '读取中'
-              : '暂无记录'}
-          {pipeline.status?.latestWorkflowRun ? ` · Workflow ${pipeline.status.latestWorkflowRun.status}` : ''}
-        </span>
-        <Button type="primary" icon={<ReloadOutlined />} onClick={refreshTopics} loading={refreshing}>
-          {refreshing ? '采集中…' : '立即采集'}
-        </Button>
-      </div>
-      {pipeline.error ? <Alert type="warning" message={`流水线状态加载失败：${pipeline.error}`} showIcon /> : null}
-      <div className={styles.topicModeTabs}>
-        {BOARD_MODES.map((mode) => (
-          <Button
-            key={mode.key}
-            type={boardMode === mode.key ? 'primary' : 'default'}
-            onClick={() => switchBoardMode(mode.key)}
-          >
-            {mode.label}
-          </Button>
-        ))}
+      {error ? <Alert type="warning" message={`系统主题加载失败：${error}；仍可管理自定义监控群组。`} showIcon /> : null}
+      <div className={styles.topicModeBar}>
+        <div className={styles.topicModeTabs}>
+          {BOARD_MODES.map((mode) => (
+            <Button
+              key={mode.key}
+              type={boardMode === mode.key ? 'primary' : 'default'}
+              onClick={() => switchBoardMode(mode.key)}
+            >
+              {mode.label}
+            </Button>
+          ))}
+        </div>
       </div>
       <Tabs
         className={styles.topicTabs}
-        activeKey={boardMode === 'circle' ? activeTopic : ''}
+        activeKey={boardMode === 'circle' ? activeTabKey : ''}
         onChange={switchTopic}
-        items={topics.map((topic) => ({
-          key: topic.name,
-          label: (
-            <span>
-              {topic.name}
-              <small>{topic.candidateCount24h}</small>
-            </span>
+        tabBarExtraContent={{
+          right: (
+            <div className={styles.createGroupButton}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreateGroup}>
+                新建群组
+              </Button>
+              <Button
+                type="primary"
+                icon={<SettingOutlined />}
+                aria-label="管理群组"
+                onClick={() => setManagerOpen(true)}
+              />
+            </div>
           ),
-          children: <TopicDetail name={topic.name} topics={topics} embedded summary={topic} boardMode={boardMode} />,
-        }))}
+        }}
+        items={[
+          ...topics.map((topic) => ({
+            key: `topic:${topic.name}`,
+            label: (
+              <span>
+                {topic.name}
+                <small>{topic.candidateCount24h}</small>
+              </span>
+            ),
+            children: (
+              <TopicDetail
+                name={topic.name}
+                topics={topics}
+                embedded
+                summary={topic}
+                boardMode={boardMode}
+                timeRangeHours={timeRangeHours}
+              />
+            ),
+          })),
+          ...customGroups.groups.map((group) => ({
+            key: `custom:${group.id}`,
+            label: (
+              <span className={styles.customTopicLabel}>
+                {group.name}
+                <button
+                  type="button"
+                  className={styles.customTopicEditButton}
+                  aria-label={`编辑群组 ${group.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    openEditGroup(group)
+                  }}
+                >
+                  <span className={styles.customTopicCount}>{getMatchedAccounts(group).length}</span>
+                  <EditOutlined className={styles.customTopicEditIcon} />
+                </button>
+              </span>
+            ),
+            children: (
+              <CustomGroupDetail
+                group={group}
+                onEdit={() => openEditGroup(group)}
+                onViewAccounts={() => setAccountsGroup(group)}
+              />
+            ),
+          })),
+        ]}
       />
+      {boardMode === 'circle' && topics.length === 0 && customGroups.groups.length === 0 ? (
+        <Empty description="暂无监控群组，请创建第一个自定义群组" />
+      ) : null}
       {boardMode !== 'circle' ? (
         <TopicDetail
-          name={boardMode === 'global' ? '全部主题' : '热度飙升'}
+          name={boardMode === 'all' ? '全部' : boardMode === 'global' ? '全部主题' : '热度飙升'}
           topics={topics}
           embedded
           boardMode={boardMode}
           modeOnly
+          timeRangeHours={timeRangeHours}
         />
       ) : null}
+      <CustomGroupEditorDrawer
+        open={editorOpen}
+        group={editingGroup}
+        onClose={() => {
+          setEditorOpen(false)
+          setEditingGroup(null)
+        }}
+        onSave={saveCustomGroup}
+      />
+      <CustomGroupManagerDrawer
+        open={managerOpen}
+        groups={customGroups.groups}
+        onClose={() => setManagerOpen(false)}
+        onEdit={openEditGroup}
+        onToggle={(id) => {
+          customGroups.toggleGroup(id)
+          toast('监控状态已更新')
+        }}
+        onDelete={deleteCustomGroup}
+      />
+      <CustomGroupAccountsDrawer group={accountsGroup} onClose={() => setAccountsGroup(null)} />
     </>
   )
 }
@@ -145,6 +267,10 @@ function formatTime(value: string) {
   })
 }
 
+function estimateRecentPosts(recentPostCount3h: number, timeRangeHours: number) {
+  return Math.max(0, Math.round(recentPostCount3h * (timeRangeHours / 3)))
+}
+
 function TopicDetail({
   name,
   topics = [],
@@ -152,6 +278,7 @@ function TopicDetail({
   summary,
   boardMode = 'circle',
   modeOnly = false,
+  timeRangeHours = 3,
 }: {
   name: string
   topics?: TopicCircleMonitorTopic[]
@@ -159,16 +286,15 @@ function TopicDetail({
   summary?: TopicCircleMonitorTopic
   boardMode?: BoardMode
   modeOnly?: boolean
+  timeRangeHours?: number
 }) {
-  const { set, toast } = useApp()
+  const { set } = useApp()
   const [posts, setPosts] = useState<TopicCirclePostLeaderboardItem[]>([])
   const [calculatedAt, setCalculatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null)
-
-  const hotCandidates = posts.filter((post) => post.status === 'hot_event_candidate').length
+  const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType[]>([])
   const activeMode = BOARD_MODES.find((mode) => mode.key === boardMode) ?? BOARD_MODES[0]
   const totalAccounts = modeOnly
     ? topics.reduce((total, topic) => total + topic.accountCount, 0)
@@ -188,6 +314,13 @@ function TopicDetail({
 
     return posts.slice(0, 10).map((post, index) => ({ ...post, rank: index + 1 }))
   }, [boardMode, posts])
+
+  const visibleBoardPosts = useMemo(() => (
+    boardPosts.filter((post) => (
+      !accountTypeFilter.length || accountTypeFilter.includes(inferAccountType(post.authorHandle))
+    ))
+  ), [accountTypeFilter, boardPosts])
+  const hotCandidates = visibleBoardPosts.filter((post) => post.status === 'hot_event_candidate').length
 
   const loadLeaderboard = () => {
     setLoading(true)
@@ -228,19 +361,6 @@ function TopicDetail({
     loadLeaderboard()
   }, [name, boardMode, topics.length, modeOnly])
 
-  const refreshTopics = async () => {
-    setRefreshing(true)
-    try {
-      const result = await refreshTopicCircleTopics(name)
-      loadLeaderboard()
-      toast(`${name}采集完成：${result.collected} 条帖子`)
-    } catch (error) {
-      toast(error instanceof Error ? error.message : '主题圈采集失败')
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
   return (
     <>
       {!embedded ? (
@@ -260,13 +380,13 @@ function TopicDetail({
             {modeOnly
               ? `${topics.length} 个主题圈 · ${totalAccounts} 个监控账号`
               : summary
-              ? `${summary.enabled ? '启用' : '停用'} · ${summary.accountCount} 个监控账号 · 近 3 小时 ${summary.recentPostCount3h} 条帖子`
+              ? `${summary.enabled ? '启用' : '停用'} · ${summary.accountCount} 个监控账号 · 近 ${timeRangeHours} 小时 ${estimateRecentPosts(summary.recentPostCount3h, timeRangeHours)} 条帖子`
               : '按监控账号帖子表现生成圈内榜单'}
           </span>
         </div>
         <div>
           <span className="small">{boardMode === 'circle' ? '圈内上榜' : '进入当前榜单'}</span>
-          <strong>{boardPosts.length}</strong>
+          <strong>{visibleBoardPosts.length}</strong>
           <span className="small">条帖子</span>
         </div>
         <div>
@@ -284,12 +404,6 @@ function TopicDetail({
           <span className="small">个</span>
         </div>
       </section>
-      <div className={styles.topicInlineRefresh}>
-        <span className="small">{modeOnly ? '手动刷新全部主题' : '手动刷新当前主题'}</span>
-        <Button type="primary" icon={<ReloadOutlined />} onClick={refreshTopics} loading={refreshing}>
-            {refreshing ? '采集中…' : '立即采集'}
-        </Button>
-      </div>
       <section className="card">
         <div className="card-head">
           <div>
@@ -300,7 +414,7 @@ function TopicDetail({
         <div className={styles.topicTrendHead}>
           <span>排名</span>
           <span>热门内容</span>
-          <span>来源账号</span>
+          <SourceAccountFilter value={accountTypeFilter} onChange={setAccountTypeFilter} />
           <span>当前浏览量</span>
           <span>本轮新增</span>
           <span>榜单变化</span>
@@ -310,11 +424,17 @@ function TopicDetail({
           <Spin tip="正在加载帖子榜单…" />
         ) : error ? (
           <Alert type="error" message={`加载失败：${error}`} showIcon />
-        ) : boardPosts.length === 0 ? (
-          <Empty description="暂无帖子榜单，等待采集" />
+        ) : visibleBoardPosts.length === 0 ? (
+          <Empty
+            description={boardPosts.length ? '当前账号类型没有匹配帖子' : '暂无帖子榜单，等待采集'}
+          >
+            {boardPosts.length ? (
+              <Button onClick={() => setAccountTypeFilter([])}>清除账号类型筛选</Button>
+            ) : null}
+          </Empty>
         ) : (
           <div className={styles.topicLeaderboard}>
-            {boardPosts.map((post) => {
+            {visibleBoardPosts.map((post) => {
               const expanded = expandedPostId === post.signalId
               return (
                 <article key={post.signalId} className={styles.topicRankItem}>
@@ -340,9 +460,8 @@ function TopicDetail({
 function TopicTrendLabel({ post }: { post: TopicCirclePostLeaderboardItem }) {
   return (
     <>
-      <span>
+      <span className={styles.topicContentCell}>
         <b>{summarizePost(post)}</b>
-        <br />
         <small className="muted">{post.topicWatchName} · 发布 {formatTime(post.publishedAt)}</small>
       </span>
       <span className={styles.topicAuthor}>
@@ -377,8 +496,37 @@ function TopicPostPanel({ post }: { post: TopicCirclePostLeaderboardItem }) {
       <div className={styles.topicPostList}>
         <TopicPostItem post={post} />
       </div>
+      <ViralFormula post={post} />
     </div>
   )
+}
+
+function ViralFormula({ post }: { post: TopicCirclePostLeaderboardItem }) {
+  const factors = buildViralFormula(post)
+  return (
+    <section className={styles.viralFormula}>
+      <div className={styles.viralFormulaHead}>
+        <span><BulbOutlined /> 爆款公式</span>
+        <Tag color="blue">规则提炼</Tag>
+      </div>
+      <strong>{factors.join(' × ')}</strong>
+      <p>提炼依据：曝光规模、互动密度、增长速度、内容表达和事件候选状态。</p>
+    </section>
+  )
+}
+
+function buildViralFormula(post: TopicCirclePostLeaderboardItem) {
+  const views = post.metrics?.views ?? 0
+  const likes = post.metrics?.likes ?? 0
+  const replies = post.metrics?.replies ?? 0
+  const likeRate = views > 0 ? likes / views : 0
+  return [
+    views >= 500_000 ? '强曝光基数' : '垂直流量切口',
+    likeRate >= 0.02 ? '高点赞密度' : '核心结论前置',
+    replies >= 100 ? '可讨论议题' : '低门槛理解',
+    (post.deltaViews ?? 0) > 0 ? '增长窗口' : '稳定热度',
+    post.status === 'hot_event_candidate' ? '事件化表达' : '持续观察价值',
+  ]
 }
 
 function TopicPostItem({ post }: { post: TopicCircleTopicPost }) {

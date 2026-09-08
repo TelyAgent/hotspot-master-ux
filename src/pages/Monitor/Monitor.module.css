@@ -6,6 +6,49 @@
   margin-bottom: 0;
 }
 
+.monitorTabsExtra {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.monitorTabsExtra > span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.monitorTabsExtra :global(.ant-select) {
+  width: 118px;
+}
+
+.monitorTabsExtra :global(.ant-btn) {
+  min-width: 104px;
+  box-shadow: none;
+}
+
+.softCollectButton:global(.ant-btn) {
+  color: #1677ff;
+  border-color: #91caff;
+  background: #e6f4ff;
+  box-shadow: none;
+}
+
+.softCollectButton:global(.ant-btn):not(:disabled):hover,
+.softCollectButton:global(.ant-btn):not(:disabled):focus-visible {
+  color: #0958d9;
+  border-color: #69b1ff;
+  background: #bae0ff;
+}
+
+.softCollectButton:global(.ant-btn):not(:disabled):active {
+  color: #0958d9;
+  border-color: #4096ff;
+  background: #91caff;
+}
+
 .ranking {
   display: grid;
   grid-template-columns: 48px minmax(200px, 1.3fr) 95px 110px 105px 110px;
@@ -49,11 +92,18 @@
   background: #fff;
 }
 
+.topicModeBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  margin: 0 0 8px;
+}
+
 .topicModeTabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 14px;
 }
 
 .topicModeTabs :global(.ant-btn) {
@@ -61,6 +111,19 @@
   min-width: 92px;
   border-radius: 8px;
   box-shadow: none;
+}
+
+.topicModeTabs :global(.ant-btn-default) {
+  color: #595959;
+  border-color: #d9d9d9;
+  background: #fafafa;
+}
+
+.topicModeTabs :global(.ant-btn-default):not(:disabled):hover,
+.topicModeTabs :global(.ant-btn-default):not(:disabled):focus-visible {
+  color: #434343;
+  border-color: #bfbfbf;
+  background: #f5f5f5;
 }
 
 .number {
@@ -77,11 +140,33 @@
   margin-bottom: 14px;
 }
 
+.topicTabs :global(.ant-tabs-nav-wrap) {
+  min-width: 0;
+}
+
+.topicTabs :global(.ant-tabs-extra-content) {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 12px;
+  padding-left: 12px;
+  background: #fff;
+}
+
+.topicTabs :global(.ant-tabs-nav::before) {
+  border-bottom: 0;
+}
+
 .topicTabs :global(.ant-tabs-tab) {
-  padding: 9px 14px;
+  min-height: 32px;
+  padding: 5px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: #fafafa;
+  color: #595959;
+  font-size: 13px;
 }
 
 .topicTabs :global(.ant-tabs-tab + .ant-tabs-tab) {
@@ -91,6 +176,10 @@
 .topicTabs :global(.ant-tabs-tab-active) {
   border-color: #1677ff;
   background: #e6f4ff;
+}
+
+.topicTabs :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: #1677ff;
 }
 
 .topicTabs :global(.ant-tabs-ink-bar) {
@@ -105,16 +194,97 @@
 
 .topicTabs small {
   display: inline-flex;
-  min-width: 20px;
-  height: 20px;
+  min-width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 999px;
-  background: #e6f4ff;
-  color: #0958d9;
-  font-size: 11px;
+  background: #f0f0f0;
+  color: #8c8c8c;
+  font-size: 10px;
   font-weight: 700;
+}
+
+.topicTabs :global(.ant-tabs-tab-active) small {
+  background: #d6e4ff;
+  color: #0958d9;
+}
+
+.createGroupButton {
+  display: inline-flex;
+  align-items: center;
+}
+
+.createGroupButton :global(.ant-btn) {
+  height: 32px;
+  box-shadow: none;
+}
+
+.createGroupButton :global(.ant-btn + .ant-btn) {
+  margin-left: -1px;
+}
+
+.createGroupButton :global(.ant-btn:first-child) {
+  border-radius: 8px 0 0 8px;
+}
+
+.createGroupButton :global(.ant-btn:last-child) {
+  width: 34px;
+  padding: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.topicTabs :global(.ant-tabs-tab):has(.customTopicLabel) {
+  border-color: #d6e4ff;
+  background: #f0f5ff;
+}
+
+.topicTabs :global(.ant-tabs-tab-active):has(.customTopicLabel) {
+  border-color: #1677ff;
+  background: #e6f4ff;
+}
+
+.customTopicEditButton {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 999px;
+  background: #d6e4ff;
+  color: #0958d9;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.customTopicEditButton:hover,
+.customTopicEditButton:focus-visible {
+  background: #bae0ff;
+  color: #0958d9;
+}
+
+.customTopicEditButton:focus-visible {
+  outline: 2px solid #91caff;
+  outline-offset: 2px;
+}
+
+.customTopicEditIcon {
+  display: none;
+  font-size: 11px;
+}
+
+.customTopicLabel:hover .customTopicCount,
+.customTopicEditButton:focus-visible .customTopicCount {
+  display: none;
+}
+
+.customTopicLabel:hover .customTopicEditIcon,
+.customTopicEditButton:focus-visible .customTopicEditIcon {
+  display: inline-flex;
 }
 
 .regionFlow {
@@ -689,6 +859,32 @@
   background: #fafafa;
 }
 
+.topicContentCell,
+.topicContentCell b,
+.topicContentCell small {
+  min-width: 0;
+}
+
+.topicContentCell b {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.topicContentCell small {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  background: transparent;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topicLeaderboard {
   border-bottom: 1px solid var(--line2);
 }
@@ -819,6 +1015,46 @@
 }
 
 .topicPostFooter {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.viralFormula {
+  padding: 12px 14px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: #f0f5ff;
+}
+
+.viralFormulaHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.viralFormulaHead > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0958d9;
+  font-weight: 700;
+}
+
+.viralFormulaHead :global(.ant-tag) {
+  margin: 0;
+}
+
+.viralFormula > strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.viralFormula > p {
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
 }

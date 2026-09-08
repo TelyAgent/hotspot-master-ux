@@ -10,7 +10,7 @@ export default defineConfig({
     // 开发环境把 /api 代理到 NestJS 服务端，避免跨域与硬编码主机名
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://34.94.189.76:6061',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
